@@ -1,6 +1,9 @@
-export type InstagramUserSummary = {
-  id: string;
-  username: string;
+export type UserId = string;
+export type UserHandle = string;
+
+export type UserSummary = {
+  id: UserId;
+  username: UserHandle;
   fullName?: string;
   avatarUrl?: string;
   isVerified?: boolean;
@@ -17,8 +20,9 @@ export type Credentials = {
   password: string;
 };
 
-export type ProfileInfo = {
-  username: string;
+export type Profile = {
+  id: UserId;
+  username: UserHandle;
   fullName?: string;
   bio?: string;
   avatarUrl?: string;
@@ -29,6 +33,8 @@ export type ProfileInfo = {
   fetchedAt: string;
 };
 
-export type ActionName = "login" | "followers" | "followings" | "profile";
+export type Timestamped<T> = T & { fetchedAt: string };
 
 export type DataKind = "followers" | "followings" | "profile";
+
+export type ConnectionsKind = "followers" | "following";

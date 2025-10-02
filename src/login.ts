@@ -1,10 +1,7 @@
 import { Page, BrowserContext } from "playwright";
 import { Credentials } from "./types";
 import { saveStorageState } from "./session";
-
-async function wait(ms: number): Promise<void> {
-  await new Promise((res) => setTimeout(res, ms));
-}
+import { delay } from "./utils";
 
 export async function ensureLoggedIn(
   page: Page,
@@ -27,7 +24,7 @@ export async function ensureLoggedIn(
     const start = Date.now();
     while (Date.now() - start < maxMs) {
       if (await isLoggedInNow()) return true;
-      await wait(1500);
+      await delay(1500);
     }
     return false;
   }
@@ -48,9 +45,9 @@ export async function ensureLoggedIn(
   const passwordField = page.locator('input[name="password"]');
   await usernameField.waitFor({ state: "visible", timeout: 30000 });
   await usernameField.fill(creds.username, { timeout: 15000 });
-  await wait(500 + Math.random() * 500);
+  await delay(500 + Math.random() * 500);
   await passwordField.fill(creds.password, { timeout: 15000 });
-  await wait(500 + Math.random() * 500);
+  await delay(500 + Math.random() * 500);
 
   const loginBtn = page
     .locator('button[type="submit"], div[role="button"]:has-text("Log in")')
@@ -74,12 +71,12 @@ export async function ensureLoggedIn(
   const saveInfo = page.locator('div[role="dialog"] button:has-text("Save")');
   if (await saveInfo.count()) {
     await saveInfo.click();
-    await wait(500);
+    await delay(500);
   }
   const notNow = page.locator('div[role="dialog"] button:has-text("Not Now")');
   if (await notNow.count()) {
     await notNow.click();
-    await wait(500);
+    await delay(500);
   }
 
   // If challenge or 2FA is presented, require HEADFUL and wait until logged in

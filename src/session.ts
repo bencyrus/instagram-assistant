@@ -8,6 +8,7 @@ import type {
 import path from "path";
 import fs from "fs";
 import { STORAGE_DIR } from "./env";
+import { USER_AGENT, VIEWPORT } from "./config";
 
 const STORAGE_STATE_PATH = path.join(STORAGE_DIR, "storage-state.json");
 
@@ -17,9 +18,8 @@ export async function getContext(
   const browser = await chromium.launch({ headless });
   const hasStorage = fs.existsSync(STORAGE_STATE_PATH);
   const options: BrowserContextOptions = {
-    viewport: { width: 1280, height: 900 },
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    viewport: VIEWPORT,
+    userAgent: USER_AGENT,
   };
   if (hasStorage) {
     options.storageState = STORAGE_STATE_PATH;
@@ -45,8 +45,4 @@ export async function withPage<T>(
     await context.close();
     await browser.close();
   }
-}
-
-export function isLoggedInStoragePresent(): boolean {
-  return fs.existsSync(STORAGE_STATE_PATH);
 }

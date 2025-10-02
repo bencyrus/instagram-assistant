@@ -1,13 +1,13 @@
 ## Instagram Automations (Playwright + TypeScript)
 
-Fetch your own Instagram followers, followings, and basic profile info using authenticated web API calls. Session persists between runs.
+Fetch your own Instagram followers, followings, and basic profile info via authenticated web API calls. Session persists between runs.
 
 ### Features
 
 - Single login with persisted session (Playwright storage state)
 - Followers and followings via Instagram web API with pagination (`has_more`/`next_max_id`)
 - Basic profile info from `web_profile_info`
-- Randomized, slower delays to reduce rate-limit risk
+- Centralized pacing with jitter and occasional spikes
 - Timestamped JSON outputs in `data/`
 
 ### Requirements
@@ -36,28 +36,29 @@ HEADFUL=1 npm run login
 
 ```bash
 # Followers
-npm run followers
+npm run followers <username>
 
 # Followings
-npm run followings
+npm run followings <username>
 
 # Profile info
-npm run profile
+npm run profile <username>
 
 # Headful mode for any action (optional UI):
-HEADFUL=1 npm run followers
+HEADFUL=1 npm run followers <username>
+npm run followers <username> -- --headful
 ```
 
 ### Outputs
 
-- `data/followers/<epoch>-followers.json`
-- `data/followings/<epoch>-followings.json`
-- `data/profile/<epoch>-profile.json`
+- `data/<username>/followers/<epoch>-followers.json`
+- `data/<username>/followings/<epoch>-followings.json`
+- `data/<username>/profile/<epoch>-profile.json`
 
-### Notes on Speed and Rate Limits
+### Notes on pacing
 
 - Calls are paced with randomized delays between pages to appear less bot-like.
-- You can adjust pacing by changing the `baseDelayMs`, `pageSize`, or `maxPages` in `src/actions/fetchFollowers.ts` and `src/actions/fetchFollowings.ts`.
+- Defaults can be adjusted via env: `IG_PAGE_SIZE`, `IG_MAX_PAGES`, `IG_BASE_DELAY_MS`, `IG_SPIKE_PROB`.
 
 ### Scripts
 
@@ -73,13 +74,13 @@ HEADFUL=1 npm run followers
 }
 ```
 
-### Architecture
+### Architecture (short)
 
-- `src/api/instagram.ts`: Web API helpers (profile info, followers, followings)
-- `src/actions/*`: Action entrypoints that call API helpers and write JSON
-- `src/login.ts`: Robust login and storage-state persistence
-- `src/session.ts`: Browser/context helpers
-- `src/types.ts`: Shared types
-- `src/cli.ts`: CLI dispatcher
+- `src/core/InstagramApiClient.ts`: central API client with error handling
+- `src/api/instagram.ts`: public functions (`getProfile`, `getFollowers`, `getFollowing`)
+- `src/actions/*`: thin action wrappers that persist JSON
+- `src/core/pacing.ts`: jitter pacing
+- `src/io/storage.ts`: snapshot IO
+- `src/config.ts`, `src/errors.ts`, `src/types.ts`
 
-UI scrapers removed; all data is collected via authenticated API calls.
+See `README_ARCH.md` for a little more detail.

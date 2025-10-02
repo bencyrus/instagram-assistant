@@ -10,8 +10,11 @@ async function main() {
   loadEnv();
   ensureDirs();
   const [, , action = "help", ...rest] = process.argv;
-  const maybeUsername = (rest[0] || "").trim();
-  const headless = !process.env.HEADFUL;
+  const flags = rest.filter((a) => a.startsWith("--"));
+  const args = rest.filter((a) => !a.startsWith("--"));
+  const maybeUsername = (args[0] || "").trim();
+  const headfulFlag = flags.includes("--headful");
+  const headless = !(process.env.HEADFUL || headfulFlag);
 
   switch (action) {
     case "login": {
@@ -58,10 +61,18 @@ async function main() {
     }
     default: {
       console.log("Usage:");
-      console.log("  npm run login              # Login and persist session");
-      console.log("  npm run followers <user>   # Fetch followers for <user>");
-      console.log("  npm run followings <user>  # Fetch followings for <user>");
-      console.log("  npm run profile <user>     # Fetch profile for <user>");
+      console.log(
+        "  npm run login                      # Login and persist session"
+      );
+      console.log(
+        "  npm run followers <user> [--headful]  # Fetch followers for <user>"
+      );
+      console.log(
+        "  npm run followings <user> [--headful] # Fetch followings for <user>"
+      );
+      console.log(
+        "  npm run profile <user> [--headful]    # Fetch profile for <user>"
+      );
       console.log("Env: IG_USERNAME, IG_PASSWORD, HEADFUL=1 to show browser");
     }
   }
