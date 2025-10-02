@@ -10,6 +10,7 @@ async function main() {
   loadEnv();
   ensureDirs();
   const [, , action = "help", ...rest] = process.argv;
+  const maybeUsername = (rest[0] || "").trim();
   const headless = !process.env.HEADFUL;
 
   switch (action) {
@@ -23,32 +24,44 @@ async function main() {
       return result;
     }
     case "followers": {
-      const result = await fetchFollowers(headless);
+      if (!maybeUsername) {
+        console.error(
+          "Error: username is required. Usage: npm run followers <username>"
+        );
+        process.exit(1);
+      }
+      const result = await fetchFollowers(headless, maybeUsername);
       console.log(JSON.stringify(result, null, 2));
       return;
     }
     case "followings": {
-      const result = await fetchFollowings(headless);
+      if (!maybeUsername) {
+        console.error(
+          "Error: username is required. Usage: npm run followings <username>"
+        );
+        process.exit(1);
+      }
+      const result = await fetchFollowings(headless, maybeUsername);
       console.log(JSON.stringify(result, null, 2));
       return;
     }
     case "profile": {
-      const result = await fetchOwnProfile(headless);
+      if (!maybeUsername) {
+        console.error(
+          "Error: username is required. Usage: npm run profile <username>"
+        );
+        process.exit(1);
+      }
+      const result = await fetchOwnProfile(headless, maybeUsername);
       console.log(JSON.stringify(result, null, 2));
       return;
     }
     default: {
       console.log("Usage:");
       console.log("  npm run login              # Login and persist session");
-      console.log(
-        "  npm run followers          # Fetch followers and save JSON"
-      );
-      console.log(
-        "  npm run followings         # Fetch followings and save JSON"
-      );
-      console.log(
-        "  npm run profile           # Fetch own profile info and save JSON"
-      );
+      console.log("  npm run followers <user>   # Fetch followers for <user>");
+      console.log("  npm run followings <user>  # Fetch followings for <user>");
+      console.log("  npm run profile <user>     # Fetch profile for <user>");
       console.log("Env: IG_USERNAME, IG_PASSWORD, HEADFUL=1 to show browser");
     }
   }

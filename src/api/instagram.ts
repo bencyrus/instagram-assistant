@@ -79,7 +79,10 @@ type FollowingsResponse = {
   next_max_id?: string;
 };
 
-async function getCookieValue(page: Page, name: string): Promise<string | undefined> {
+async function getCookieValue(
+  page: Page,
+  name: string
+): Promise<string | undefined> {
   return page.evaluate((cookieName) => {
     const parts = document.cookie.split("; ");
     for (const part of parts) {
@@ -90,8 +93,26 @@ async function getCookieValue(page: Page, name: string): Promise<string | undefi
   }, name);
 }
 
-export async function fetchOwnFollowingsApi(
+export async function fetchFollowingsApi(
   page: Page,
+  username: string,
+  opts?: { pageSize?: number; maxPages?: number; baseDelayMs?: number }
+): Promise<InstagramUserSummary[]> {
+  return fetchConnections(page, username, "following", opts);
+}
+
+export async function fetchFollowersApi(
+  page: Page,
+  username: string,
+  opts?: { pageSize?: number; maxPages?: number; baseDelayMs?: number }
+): Promise<InstagramUserSummary[]> {
+  return fetchConnections(page, username, "followers", opts);
+}
+
+async function fetchConnections(
+  page: Page,
+  username: string,
+  kind: "followers" | "following",
   opts?: { pageSize?: number; maxPages?: number; baseDelayMs?: number }
 ): Promise<InstagramUserSummary[]> {
   const pageSize = opts?.pageSize ?? 12;
@@ -99,11 +120,20 @@ export async function fetchOwnFollowingsApi(
   const baseDelayMs = opts?.baseDelayMs ?? 1400;
 
   if (!page.url().startsWith("https://www.instagram.com")) {
-    await page.goto("https://www.instagram.com/", { waitUntil: "domcontentloaded" });
+    await page.goto("https://www.instagram.com/", {
+      waitUntil: "domcontentloaded",
+    });
   }
 
-  const userId = await getCookieValue(page, "ds_user_id");
-  if (!userId) throw new Error("Could not determine ds_user_id from cookies");
+  // Resolve user id for the target username
+  const targetProfile = await fetchWebProfileInfo(page, username);
+  const userId =
+    (targetProfile as any)?.id || (targetProfile as any)?.pk || undefined;
+  // Fallback to cookie if not available (own account)
+  const selfId = await getCookieValue(page, "ds_user_id");
+  const finalUserId = userId || selfId;
+  if (!finalUserId)
+    throw new Error("Could not resolve user id for target username");
   const csrf = (await getCookieValue(page, "csrftoken")) || "";
 
   let nextMaxId: string | undefined = undefined;
@@ -111,11 +141,14 @@ export async function fetchOwnFollowingsApi(
 
   for (let pageNum = 0; pageNum < maxPages; pageNum++) {
     const endpoint = `https://www.instagram.com/api/v1/friendships/${encodeURIComponent(
-      userId
-    )}/following/?count=${pageSize}${nextMaxId ? `&max_id=${encodeURIComponent(nextMaxId)}` : ""}`;
+      finalUserId
+    )}/${kind}/?count=${pageSize}${
+      nextMaxId ? `&max_id=${encodeURIComponent(nextMaxId)}` : ""
+    }`;
 
     const json = (await page.evaluate(
-      async (url, csrfToken) => {
+      async (args: { url: string; csrfToken: string }) => {
+        const { url, csrfToken } = args;
         const res = await fetch(url, {
           method: "GET",
           credentials: "include",
@@ -129,27 +162,31 @@ export async function fetchOwnFollowingsApi(
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return (await res.json()) as any;
       },
-      endpoint,
-      csrf
+      { url: endpoint, csrfToken: csrf }
     )) as FollowingsResponse;
 
     const users = json?.users ?? [];
     for (const u of users) {
       const username = u.username || String(u.pk || "");
-      summaries.push({
+      const summary: InstagramUserSummary = {
         id: username,
         username,
-        fullName: u.full_name || undefined,
-        avatarUrl: u.profile_pic_url || undefined,
-        isVerified: u.is_verified || false,
-      });
+      };
+      if (u.full_name) summary.fullName = u.full_name;
+      if (u.profile_pic_url) summary.avatarUrl = u.profile_pic_url;
+      if (typeof u.is_verified === "boolean")
+        summary.isVerified = u.is_verified;
+      summaries.push(summary);
     }
 
-    if (!json?.has_more) break;
-    nextMaxId = json?.next_max_id;
+    const hasMore = (json as any)?.has_more === true;
+    if (!hasMore) break;
+    nextMaxId = (json as any)?.next_max_id;
 
-    // Slower, jittered delay between pages to avoid rate limiting
-    await page.evaluate((ms) => new Promise((r) => setTimeout(r, ms)), Math.round(baseDelayMs * (0.8 + Math.random() * 0.8)));
+    // Randomized pacing to reduce rate limits
+    let delayMs = Math.round(baseDelayMs * (0.8 + Math.random() * 0.8));
+    if (Math.random() < 0.15) delayMs = Math.round(delayMs * 2); // occasional longer waits
+    await page.waitForTimeout(delayMs);
   }
 
   return summaries;

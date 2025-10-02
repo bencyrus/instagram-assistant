@@ -30,3 +30,5 @@ export type ProfileInfo = {
 };
 
 export type ActionName = "login" | "followers" | "followings" | "profile";
+
+export type DataKind = "followers" | "followings" | "profile";

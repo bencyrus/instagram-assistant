@@ -1,51 +1,85 @@
-# Instagram Automation (Playwright + TypeScript)
+## Instagram Automations (Playwright + TypeScript)
 
-This project automates fetching your own Instagram followers and followings using Playwright with persistent sessions.
+Fetch your own Instagram followers, followings, and basic profile info using authenticated web API calls. Session persists between runs.
 
-## Setup
+### Features
 
-1. Install dependencies:
+- Single login with persisted session (Playwright storage state)
+- Followers and followings via Instagram web API with pagination (`has_more`/`next_max_id`)
+- Basic profile info from `web_profile_info`
+- Randomized, slower delays to reduce rate-limit risk
+- Timestamped JSON outputs in `data/`
+
+### Requirements
+
+- Node.js 18+
+- `.env` file with:
+  - `IG_USERNAME=your_username`
+  - `IG_PASSWORD=your_password`
+  - Optional: `HEADFUL=1` to run with browser UI
+
+### Install
 
 ```bash
 npm install
 ```
 
-2. Create a `.env` file in the project root:
-
-```bash
-IG_USERNAME=your_username
-IG_PASSWORD=your_password
-# HEADFUL=1  # Uncomment to see the browser
-```
-
-## First Login
+### Login (persist session)
 
 ```bash
 npm run login
+# If challenge/2FA, use headful mode:
+HEADFUL=1 npm run login
 ```
 
-On first run, you'll be prompted to login. The session is persisted in `playwright/.auth/storage-state.json` and reused until invalid.
-
-## Actions
-
-- Fetch followers:
+### Usage
 
 ```bash
+# Followers
 npm run followers
-```
 
-Writes `data/followers-<username>.json`.
-
-- Fetch followings:
-
-```bash
+# Followings
 npm run followings
+
+# Profile info
+npm run profile
+
+# Headful mode for any action (optional UI):
+HEADFUL=1 npm run followers
 ```
 
-Writes `data/followings-<username>.json`.
+### Outputs
 
-## Notes
+- `data/followers/<epoch>-followers.json`
+- `data/followings/<epoch>-followings.json`
+- `data/profile/<epoch>-profile.json`
 
-- Set `HEADFUL=1` to run non-headless if you need to pass any verification.
-- Basic delays/jitter are used to avoid rate-limiting. Consider longer waits for large lists.
-- This scrapes UI content only for your own profile lists; no API calls.
+### Notes on Speed and Rate Limits
+
+- Calls are paced with randomized delays between pages to appear less bot-like.
+- You can adjust pacing by changing the `baseDelayMs`, `pageSize`, or `maxPages` in `src/actions/fetchFollowers.ts` and `src/actions/fetchFollowings.ts`.
+
+### Scripts
+
+```json
+{
+  "build": "tsc -p tsconfig.json",
+  "start": "node dist/cli.js",
+  "dev": "ts-node src/cli.ts",
+  "login": "ts-node src/cli.ts login",
+  "followers": "ts-node src/cli.ts followers",
+  "followings": "ts-node src/cli.ts followings",
+  "profile": "ts-node src/cli.ts profile"
+}
+```
+
+### Architecture
+
+- `src/api/instagram.ts`: Web API helpers (profile info, followers, followings)
+- `src/actions/*`: Action entrypoints that call API helpers and write JSON
+- `src/login.ts`: Robust login and storage-state persistence
+- `src/session.ts`: Browser/context helpers
+- `src/types.ts`: Shared types
+- `src/cli.ts`: CLI dispatcher
+
+UI scrapers removed; all data is collected via authenticated API calls.

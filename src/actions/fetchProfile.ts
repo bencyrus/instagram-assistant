@@ -1,24 +1,22 @@
-import fs from "fs";
-import path from "path";
 import { withPage } from "../session";
 import { ensureLoggedIn } from "../login";
-import { getCredentials, DATA_DIR } from "../env";
+import { getCredentials } from "../env";
 import { ProfileInfo } from "../types";
 import { fetchWebProfileInfo } from "../api/instagram";
+import { nowIso } from "../utils";
+import { saveJson } from "../utils";
 
-export async function fetchOwnProfile(headless = true): Promise<ProfileInfo> {
+export async function fetchOwnProfile(
+  headless = true,
+  username: string
+): Promise<ProfileInfo> {
   const creds = getCredentials();
+  const target = username.trim();
   return withPage(headless, async (page, context) => {
     await ensureLoggedIn(page, context, creds);
-    const info = await fetchWebProfileInfo(page, creds.username);
-    const outDir = path.join(DATA_DIR, "profile");
-    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-    const epoch = Date.now();
-    const outPath = path.join(outDir, `${epoch}-profile.json`);
-    fs.writeFileSync(outPath, JSON.stringify(info, null, 2), {
-      encoding: "utf-8",
-    });
-    console.log(`Saved profile JSON to: ${outPath}`);
-    return info;
+    const info = await fetchWebProfileInfo(page, target);
+    const withTimestamp: ProfileInfo = { ...info, fetchedAt: nowIso() };
+    await saveJson(target, "profile", withTimestamp);
+    return withTimestamp;
   });
 }

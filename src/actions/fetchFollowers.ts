@@ -1,34 +1,30 @@
-import fs from "fs";
-import path from "path";
 import { withPage } from "../session";
 import { ensureLoggedIn } from "../login";
-import { getCredentials, DATA_DIR } from "../env";
+import { getCredentials } from "../env";
 import { InstagramUserSummary, ScrapeResult } from "../types";
-import {
-  openProfileFollowers,
-  scrapeAllVisibleUsers,
-} from "../scrapers/profile";
+import { fetchFollowersApi } from "../api/instagram";
+import { nowIso } from "../utils";
+import { saveJson } from "../utils";
 
 export async function fetchFollowers(
-  headless = true
+  headless = true,
+  username: string
 ): Promise<ScrapeResult<InstagramUserSummary>> {
   const creds = getCredentials();
+  const target = username.trim();
   return withPage(headless, async (page, context) => {
     await ensureLoggedIn(page, context, creds);
-    await openProfileFollowers(page, creds.username);
-    const items = await scrapeAllVisibleUsers(page);
+    const items = await fetchFollowersApi(page, target, {
+      pageSize: 12,
+      baseDelayMs: 1700,
+      maxPages: 500,
+    });
     const result: ScrapeResult<InstagramUserSummary> = {
       items,
       total: items.length,
-      fetchedAt: new Date().toISOString(),
+      fetchedAt: nowIso(),
     };
-    const outDir = path.join(DATA_DIR, "followers");
-    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-    const epoch = Date.now();
-    const outPath = path.join(outDir, `${epoch}-followers.json`);
-    fs.writeFileSync(outPath, JSON.stringify(result, null, 2), {
-      encoding: "utf-8",
-    });
+    await saveJson(target, "followers", result);
     return result;
   });
 }
