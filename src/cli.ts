@@ -5,6 +5,7 @@ import { getCredentials } from "./env";
 import { fetchFollowers } from "./actions/fetchFollowers";
 import { fetchFollowings } from "./actions/fetchFollowings";
 import { fetchOwnProfile } from "./actions/fetchProfile";
+import { fetchPostLikers } from "./actions/fetchPostLikers";
 
 async function main() {
   loadEnv();
@@ -59,6 +60,18 @@ async function main() {
       console.log(JSON.stringify(result, null, 2));
       return;
     }
+    case "post-likers": {
+      const input = (args[0] || "").trim();
+      if (!input) {
+        console.error(
+          "Error: mediaId|shortcode|url is required. Usage: npm run post-likers <mediaId|shortcode|url>"
+        );
+        process.exit(1);
+      }
+      const result = await fetchPostLikers(headless, input);
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
     default: {
       console.log("Usage:");
       console.log(
@@ -72,6 +85,9 @@ async function main() {
       );
       console.log(
         "  npm run profile <user> [--headful]    # Fetch profile for <user>"
+      );
+      console.log(
+        "  npm run post-likers <mediaId|shortcode|url> [--headful] # Fetch post likers"
       );
       console.log("Env: IG_USERNAME, IG_PASSWORD, HEADFUL=1 to show browser");
     }

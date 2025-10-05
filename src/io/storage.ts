@@ -17,3 +17,18 @@ export async function saveJson(
   });
   return outPath;
 }
+
+export async function saveJsonPost(
+  identifier: string,
+  kind: "likers",
+  data: unknown
+): Promise<string> {
+  const outDir = path.join(DATA_DIR, "posts", identifier);
+  await fs.promises.mkdir(outDir, { recursive: true });
+  const epoch = Date.now();
+  const outPath = path.join(outDir, `${epoch}-${identifier}-${kind}.json`);
+  await fs.promises.writeFile(outPath, JSON.stringify(data, null, 2), {
+    encoding: "utf-8",
+  });
+  return outPath;
+}

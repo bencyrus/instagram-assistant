@@ -51,3 +51,19 @@ export async function getFollowing(
 ): Promise<UserSummary[]> {
   return getConnections(page, "following", userId, opts);
 }
+
+export async function resolveMediaId(
+  page: Page,
+  input: string
+): Promise<string> {
+  const client = new InstagramApiClient(page);
+  return client.resolveMediaId(input);
+}
+
+export async function getPostLikers(
+  page: Page,
+  mediaId: string
+): Promise<{ items: UserSummary[]; totalLikes: number }> {
+  const client = new InstagramApiClient(page);
+  return client.getPostLikers(mediaId);
+}

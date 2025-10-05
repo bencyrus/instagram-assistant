@@ -38,3 +38,8 @@ export type Timestamped<T> = T & { fetchedAt: string };
 export type DataKind = "followers" | "followings" | "profile";
 
 export type ConnectionsKind = "followers" | "following";
+
+export type PostLikersResult = ScrapeResult<UserSummary> & {
+  totalLikes: number; // reported by API (may exceed items.length)
+  available: number; // number of profiles actually returned (items.length)
+};

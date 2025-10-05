@@ -97,6 +97,129 @@ export class InstagramApiClient {
     this.page = page;
   }
 
+  async resolveMediaId(input: string): Promise<string> {
+    await ensureOrigin(this.page);
+    // Accept direct media id, shortcode, or a full URL
+    const directId = input.trim();
+    if (/^\d{8,}$/.test(directId)) return directId;
+
+    // Try parse shortcode from URL or raw shortcode
+    let shortcode = directId;
+    const urlMatch = directId.match(/instagram\.com\/(?:p|reel)\/([^\/?#]+)/i);
+    if (urlMatch) shortcode = String(urlMatch[1] ?? shortcode);
+    if (!/^[A-Za-z0-9_-]+$/.test(shortcode)) {
+      throw new ApiError("Invalid shortcode or media id input");
+    }
+
+    const url = `https://www.instagram.com/api/v1/media/shortcode/${encodeURIComponent(
+      shortcode
+    )}/`;
+    try {
+      const json = await fetchJson<any>(this.page, url, {
+        accept: "application/json",
+        "x-ig-app-id": "936619743392459",
+      });
+      const mediaId = String(
+        (json as any)?.media?.id || (json as any)?.items?.[0]?.id || ""
+      );
+      if (mediaId) return mediaId;
+    } catch (err: any) {
+      const status = err?.status as number | undefined;
+      if (status && status !== 404) throw err;
+    }
+
+    const postUrl = /instagram\.com\//i.test(directId)
+      ? directId
+      : `https://www.instagram.com/p/${shortcode}/`;
+
+    // Fallback candidates for oEmbed-like endpoints
+    const candidates = [
+      `https://www.instagram.com/oembed/?url=${encodeURIComponent(
+        postUrl
+      )}&omitscript=true`,
+      `https://www.instagram.com/api/v1/oembed/?url=${encodeURIComponent(
+        postUrl
+      )}`,
+    ];
+    for (const endpoint of candidates) {
+      try {
+        const oembed = await fetchJson<any>(this.page, endpoint, {
+          accept: "application/json",
+          "x-ig-app-id": "936619743392459",
+        });
+        const mid = String(
+          (oembed as any)?.media_id || (oembed as any)?.media?.id || ""
+        );
+        if (mid) return mid;
+      } catch (err: any) {
+        const status = err?.status as number | undefined;
+        if (!status || status === 404) continue;
+        throw err;
+      }
+    }
+    throw new ApiError("Could not resolve media id from input");
+  }
+
+  async getPostLikers(
+    mediaId: string,
+    options?: {
+      baseDelayMs?: number;
+      wait?: (ms: number) => Promise<void>;
+      computeDelay?: (baseMs?: number) => number;
+    }
+  ): Promise<{ items: UserSummary[]; totalLikes: number }> {
+    await ensureOrigin(this.page);
+    const csrf = (await getCookieValue(this.page, "csrftoken")) || "";
+    const baseUrl = `https://www.instagram.com/api/v1/media/${encodeURIComponent(
+      mediaId
+    )}/likers/`;
+    const seen = new Map<string, UserSummary>();
+    let maxId: string | undefined = undefined;
+    let safety = 0;
+    let totalLikes = 0;
+    while (safety++ < 25) {
+      const url = maxId
+        ? `${baseUrl}?max_id=${encodeURIComponent(maxId)}`
+        : baseUrl;
+      const json = await fetchJson<any>(this.page, url, {
+        accept: "application/json, text/plain, */*",
+        "x-ig-app-id": "936619743392459",
+        "x-requested-with": "XMLHttpRequest",
+        "x-csrftoken": csrf || "",
+      });
+      const users = (json?.users as any[]) || [];
+      const apiCount = Number((json as any)?.user_count ?? 0);
+      if (apiCount > totalLikes) totalLikes = apiCount;
+      for (const u of users) {
+        const username = u.username || String(u.pk || "");
+        const id = String(u.pk || username);
+        if (seen.has(id)) continue;
+        const summary: UserSummary = { id, username };
+        if (u.full_name) summary.fullName = u.full_name;
+        if (u.profile_pic_url) summary.avatarUrl = u.profile_pic_url;
+        if (typeof u.is_verified === "boolean")
+          summary.isVerified = u.is_verified;
+        seen.set(id, summary);
+      }
+      const token = (json as any)?.follow_ranking_token as string | undefined;
+      if (
+        token &&
+        seen.size < totalLikes &&
+        token !== maxId &&
+        users.length > 0
+      ) {
+        maxId = token;
+        if (options?.computeDelay && options?.wait) {
+          const ms = options.computeDelay(options.baseDelayMs);
+          await options.wait(ms);
+        }
+        continue;
+      }
+      break;
+    }
+    return { items: Array.from(seen.values()), totalLikes };
+  }
+
   async getProfile(username: string): Promise<Profile> {
     await ensureOrigin(this.page);
     const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(
@@ -108,9 +231,12 @@ export class InstagramApiClient {
     });
     const u = json?.data?.user ?? {};
     const id = String((u as any).id || (u as any).pk || "");
+    const finalUsername = (u as any).username
+      ? String((u as any).username)
+      : username;
     const profile: Profile = {
       id: id,
-      username: u.username || username,
+      username: finalUsername,
       fetchedAt: new Date().toISOString(),
     };
     if (u.full_name) profile.fullName = u.full_name;
